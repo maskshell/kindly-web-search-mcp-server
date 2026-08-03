@@ -13,3 +13,14 @@ __pycache__/
 /REQUIREMENTS.md
 /.claude/
 /research/
+.claude/parallel-dev/loop-state.json
+.claude/parallel-dev/runs/
+.env.solidforge
+/.graphiti.json
+/.semgrep.yml
+/.spectral.yaml
+/.vale.ini
+/uv.lock
+/FORK_WORKFLOW.md
+!.env.example
+!.env.solidforge.example

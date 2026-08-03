@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# pre-push hook template (committed on `local`; the ACTIVE copy lives at .git/hooks/pre-push).
+#
+# Install on a fresh clone:
+#   cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+#
+# Why .git/hooks/ and not core.hooksPath: the hook must fire when pushing a pr/* branch,
+# whose worktree lacks fork-only files. Only .git/hooks/ is branch-independent. The hook
+# reads the committed denylist (scripts/fork-pr-check.sh) from the `local` ref via git
+# objects, so it works regardless of which branch is checked out.
+#
+# Blocks pushing a pr/* branch if its diff vs `main` contains fork-only / Solid Forge
+# content. Reads pushed refs from stdin: "<local-ref> <local-sha> <remote-ref> <remote-sha>".
+# Only guards refs/heads/pr/* — `main` (pristine) and `local` (legitimately fork-only) pass.
+# Override (emergencies only): git push --no-verify
+
+set -uo pipefail
+
+run_guard() {
+  local branch="$1" script
+  script="$(git show local:scripts/fork-pr-check.sh 2>/dev/null || true)"
+  [ -z "$script" ] && script="$(git show origin/local:scripts/fork-pr-check.sh 2>/dev/null || true)"
+  if [ -z "$script" ]; then
+    echo "pre-push: WARN — scripts/fork-pr-check.sh not found on local/origin/local; guard skipped." >&2
+    return 0
+  fi
+  printf '%s\n' "$script" | bash /dev/stdin "$branch"
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_ref" in
+    refs/heads/pr/*)
+      branch="${local_ref#refs/heads/}"
+      echo "==> pre-push: fork-leak guard on ${branch}"
+      if ! run_guard "$branch"; then
+        echo "pre-push: ABORTING push of ${branch} — fork-only content would leak upstream."
+        echo "         fix and re-push, or override with: git push --no-verify"
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+exit 0
